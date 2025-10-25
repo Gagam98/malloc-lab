@@ -75,6 +75,7 @@ static void place(void *bp, size_t asize);
 
 
 static char *heap_listp;
+static char *last_bp;
 
 /*
  * mm_init - initialize the malloc package.
@@ -89,6 +90,7 @@ int mm_init(void)
     PUT(heap_listp+(2*WSIZE),PACK(DSIZE,1));
     PUT(heap_listp+(3*WSIZE),PACK(0,1));
     heap_listp+=(2*WSIZE);
+    last_bp=heap_listp;     //last_bp 초기화
 
     if(extend_heap(CHUNKSIZE/WSIZE)==NULL)
         return -1;
@@ -158,34 +160,39 @@ void mm_free(void *ptr)
 
 static void *coalesce(void *bp)
 {
-    size_t prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp)));
+    size_t prev_alloc = 1;  // 기본값: 이전 블록 할당됨
     size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
     size_t size = GET_SIZE(HDRP(bp));
-
-    if (prev_alloc && next_alloc) {            /* Case 1: 양쪽 모두 할당 */
-        return bp;
+    
+    // 프롤로그 블록이 아닐 때만 이전 블록 체크
+    if (PREV_BLKP(bp) >= heap_listp) {
+        prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp)));
     }
 
-    else if (prev_alloc && !next_alloc) {      /* Case 2: 다음만 자유 */
+    if (prev_alloc && next_alloc) {            /* Case 1 */
+        last_bp = bp;
+        return bp;
+    }
+    else if (prev_alloc && !next_alloc) {      /* Case 2 */
         size += GET_SIZE(HDRP(NEXT_BLKP(bp)));
         PUT(HDRP(bp), PACK(size, 0));
         PUT(FTRP(bp), PACK(size, 0));
     }
-
-    else if (!prev_alloc && next_alloc) {      /* Case 3: 이전만 자유 */
+    else if (!prev_alloc && next_alloc) {      /* Case 3 */
         size += GET_SIZE(HDRP(PREV_BLKP(bp)));
         PUT(FTRP(bp), PACK(size, 0));
         PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
         bp = PREV_BLKP(bp);
     }
-
-    else {                                      /* Case 4: 양쪽 모두 자유 */
+    else {                                      /* Case 4 */
         size += GET_SIZE(HDRP(PREV_BLKP(bp))) +
                 GET_SIZE(FTRP(NEXT_BLKP(bp)));
         PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
         PUT(FTRP(NEXT_BLKP(bp)), PACK(size, 0));
         bp = PREV_BLKP(bp);
     }
+    
+    last_bp = bp;
     return bp;
 }
 
@@ -212,11 +219,24 @@ void *mm_realloc(void *ptr, size_t size)
 static void *find_fit(size_t asize)
 {
     void *bp;
-    for (bp = heap_listp; GET_SIZE(HDRP(bp)) > 0; bp = NEXT_BLKP(bp)) {
+    void *start_bp = last_bp;  // 시작 위치 저장
+
+    /* 이전 탐색 위치부터 힙 끝까지 탐색 */
+    for (bp = start_bp; GET_SIZE(HDRP(bp)) > 0; bp = NEXT_BLKP(bp)) {
         if (!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))) {
+            last_bp = bp;  // 찾은 위치 저장
             return bp;
         }
     }
+
+    /* 힙 끝까지 못 찾으면 처음부터 이전 탐색 위치까지 탐색 */
+    for (bp = heap_listp; bp < start_bp && GET_SIZE(HDRP(bp)) > 0; bp = NEXT_BLKP(bp)) {
+        if (!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))) {
+            last_bp = bp;  // 찾은 위치 저장
+            return bp;
+        }
+    }
+
     return NULL;
 }
 
