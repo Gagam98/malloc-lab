@@ -101,6 +101,11 @@ int mm_init(void)
     heap_listp += (2*WSIZE);                       // Prologue footer 뒤로 이동
     free_listp = NULL;
 
+    /*(테스트케이스에 한해서) 자주사용되는 작은 블럭이 잘 처리되어 점수가 오르는 것*/
+    /*extend_heap에서 처리를 안해줘서 일단은 오류나는듯*/
+    // if (extend_heap(4)==NULL)       
+    //     return -1;
+
     // 첫 확장
     if (extend_heap(CHUNKSIZE/WSIZE) == NULL)
         return -1;
@@ -109,10 +114,10 @@ int mm_init(void)
 }
 
 
-
+/*계산식을 굳이 안쓰고 word 대신 byte를 써보기 malloc 함수에 역할 모두 맡기기*/
 static void *extend_heap(size_t words)
 {
-    char *bp;
+    char *bp; //블록 포인터
     size_t size;
 
     size = (words % 2) ? (words+1) * WSIZE : words * WSIZE;
@@ -199,11 +204,6 @@ static void *coalesce(void *bp)
     size_t prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp)));
     size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
     size_t size = GET_SIZE(HDRP(bp));
-
-    // 프롤로그 블록 체크 추가
-    if (bp == heap_listp) {
-        prev_alloc = 1;
-    }
 
     if (prev_alloc && next_alloc) {
         insert_node(bp);
