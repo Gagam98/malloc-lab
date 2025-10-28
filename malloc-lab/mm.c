@@ -46,7 +46,7 @@ team_t team = {
 /*기본 상수 정의*/
 #define WSIZE 4     //32비트 워드 크기
 #define DSIZE 8
-#define CHUNKSIZE (1<<12)
+// #define CHUNKSIZE (1<<12)
 #define MAX(x,y) ((x) > (y) ? (x):(y))
 
 /*크기와 할당 비트를 하나의 워드로 패킹*/
@@ -86,7 +86,7 @@ static char *seg_list[NUM_CLASSES];  // 각 크기 클래스별 free list 헤드
 
 // 블록 크기에 맞는 클래스 인덱스 반환
 static int get_class(size_t size)
-{  
+{
     if (size <= 32) return 0;
     if (size <= 64) return 1;
     if (size <= 128) return 2;
@@ -113,36 +113,19 @@ int mm_init(void)
     PUT(heap_listp + (3*WSIZE), PACK(0, 1));
 
     heap_listp += (2*WSIZE);
-    
     for (int i = 0; i < NUM_CLASSES; i++) {
         seg_list[i] = NULL;
     }
-    
-    // 여러 크기의 작은 블록 미리 할당하여 초기 단편화 방지
-    // 32바이트 블록 여러 개 생성
-    // if (extend_heap(4) == NULL)   // 32바이트
-    //     return -1;
-    
-    // 기본 청크 할당
-    if (extend_heap(CHUNKSIZE/WSIZE) == NULL)
-        return -1;
-
     return 0;
 }
 
 /*계산식을 굳이 안쓰고 word 대신 byte를 써보기 malloc 함수에 역할 모두 맡기기*/
 static void *extend_heap(size_t words)
 {
-    char *bp;
+    char *bp; //블록 포인터
     size_t size;
 
     size = (words % 2) ? (words+1) * WSIZE : words * WSIZE;
-    
-    // 최소 블록 크기 보장 (32바이트)
-    // if (size < 4 * DSIZE) {
-    //     size = 4 * DSIZE;
-    // }
-    
     if ((long)(bp = mem_sbrk(size)) == -1)
         return NULL;
 
@@ -179,7 +162,7 @@ void *mm_malloc(size_t size)
     }
 
     /* 적합한 블록 없음. 힙 확장 */
-    extendsize = MAX(asize, CHUNKSIZE);
+    extendsize = asize;
     if ((bp = extend_heap(extendsize/WSIZE)) == NULL)
         return NULL;
     place(bp, asize);
@@ -345,6 +328,13 @@ static void *find_fit(size_t asize)
                 // 완벽한 fit 발견 시 즉시 반환
                 if (diff == 0) {
                     return bp;
+                }
+
+                size_t remainder;
+                if (diff >= (2 * DSIZE)) {
+                    remainder = diff;  // 분할 가능 - 실제로 남는 크기
+                } else {
+                    remainder = 0;     // 분할 불가 - 남는 공간 없음 (전체 사용)
                 }
                 
                 // 더 나은 fit 발견

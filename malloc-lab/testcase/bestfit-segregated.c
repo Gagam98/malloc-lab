@@ -46,7 +46,7 @@ team_t team = {
 /*기본 상수 정의*/
 #define WSIZE 4     //32비트 워드 크기
 #define DSIZE 8
-#define CHUNKSIZE (1<<12)
+// #define CHUNKSIZE (1<<12)
 #define MAX(x,y) ((x) > (y) ? (x):(y))
 
 /*크기와 할당 비트를 하나의 워드로 패킹*/
@@ -87,18 +87,6 @@ static char *seg_list[NUM_CLASSES];  // 각 크기 클래스별 free list 헤드
 // 블록 크기에 맞는 클래스 인덱스 반환
 static int get_class(size_t size)
 {
-    // 크기 클래스: 
-    // 0: 16-31
-    // 1: 32-63
-    // 2: 64-127
-    // 3: 128-255
-    // 4: 256-511
-    // 5: 512-1023
-    // 6: 1024-2047
-    // 7: 2048-4095
-    // 8: 4096-8191
-    // 9: 8192+
-    
     if (size <= 32) return 0;
     if (size <= 64) return 1;
     if (size <= 128) return 2;
@@ -125,20 +113,9 @@ int mm_init(void)
     PUT(heap_listp + (3*WSIZE), PACK(0, 1));
 
     heap_listp += (2*WSIZE);
-    
-    // 기존: free_listp = NULL;
-    // 새로 추가: 모든 segregated list 초기화
     for (int i = 0; i < NUM_CLASSES; i++) {
         seg_list[i] = NULL;
     }
-    /*(테스트케이스에 한해서) 자주사용되는 작은 블럭이 잘 처리되어 점수가 오르는 것*/
-    /*extend_heap에서 처리를 안해줘서 일단은 오류나는듯*/
-    // if (extend_heap(4)==NULL)       
-    //     return -1;
-
-    if (extend_heap(CHUNKSIZE/WSIZE) == NULL)
-        return -1;
-
     return 0;
 }
 
@@ -185,7 +162,7 @@ void *mm_malloc(size_t size)
     }
 
     /* 적합한 블록 없음. 힙 확장 */
-    extendsize = MAX(asize, CHUNKSIZE);
+    extendsize = asize;
     if ((bp = extend_heap(extendsize/WSIZE)) == NULL)
         return NULL;
     place(bp, asize);
@@ -351,6 +328,13 @@ static void *find_fit(size_t asize)
                 // 완벽한 fit 발견 시 즉시 반환
                 if (diff == 0) {
                     return bp;
+                }
+
+                size_t remainder;
+                if (diff >= (2 * DSIZE)) {
+                    remainder = diff;  // 분할 가능 - 실제로 남는 크기
+                } else {
+                    remainder = 0;     // 분할 불가 - 남는 공간 없음 (전체 사용)
                 }
                 
                 // 더 나은 fit 발견

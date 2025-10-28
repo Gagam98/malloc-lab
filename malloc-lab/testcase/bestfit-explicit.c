@@ -46,7 +46,7 @@ team_t team = {
 /*기본 상수 정의*/
 #define WSIZE 4     //32비트 워드 크기
 #define DSIZE 8
-#define CHUNKSIZE (1<<12)
+// #define CHUNKSIZE (1<<12)
 #define MAX(x,y) ((x) > (y) ? (x):(y))
 
 /*크기와 할당 비트를 하나의 워드로 패킹*/
@@ -101,15 +101,6 @@ int mm_init(void)
     heap_listp += (2*WSIZE);                       // Prologue footer 뒤로 이동
     free_listp = NULL;
 
-    /*(테스트케이스에 한해서) 자주사용되는 작은 블럭이 잘 처리되어 점수가 오르는 것*/
-    /*extend_heap에서 처리를 안해줘서 일단은 오류나는듯*/
-    // if (extend_heap(4)==NULL)       
-    //     return -1;
-
-    // 첫 확장
-    if (extend_heap(CHUNKSIZE/WSIZE) == NULL)
-        return -1;
-
     return 0;
 }
 
@@ -156,8 +147,8 @@ void *mm_malloc(size_t size)
         return bp;
     }
 
-    /* 적합한 블록 없음. 힙 확장 */
-    extendsize = MAX(asize, CHUNKSIZE);
+    /* 적합한 블록 없음. 요청된 크기만큼만 힙 확장 */
+    extendsize = asize;
     if ((bp = extend_heap(extendsize/WSIZE)) == NULL)
         return NULL;
     place(bp, asize);
@@ -310,6 +301,13 @@ static void *find_fit(size_t asize)
             // 완벽한 fit을 찾으면 즉시 반환 (최적화)
             if (diff == 0) {
                 return bp;
+            }
+
+            size_t remainder;
+            if (diff >= (2 * DSIZE)) {
+                remainder = diff;  // 분할 가능 - 실제로 남는 크기
+            } else {
+                remainder = 0;     // 분할 불가 - 남는 공간 없음 (전체 사용)
             }
             
             // 더 작은 차이를 가진 블록 발견
